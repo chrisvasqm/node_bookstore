@@ -3,6 +3,7 @@ import { Request, Response, Router } from 'express';
 import { z } from 'zod';
 import prisma from '../../prisma/client';
 import auth from '../middleware/auth';
+import { createAuthor, deleteAuthor, findAuthor, getAll as getAllAuthors, updateAuthor } from '../services/authorsService';
 
 const schema = z.object({
     name: z.string({ required_error: 'Name is required' }).min(1, 'Name can not be empty.')
@@ -10,32 +11,32 @@ const schema = z.object({
 
 const router = Router();
 
-router.get('/', auth, async (_: Request, response: Response) => {
-    const authors = await prisma.author.findMany();
+router.get('/', auth, async (_, response) => {
+    const authors = await getAllAuthors();
     response.send(authors);
 });
 
-router.post('/', auth, async (request: Request, response: Response) => {
+router.post('/', auth, async (request, response) => {
     const body = request.body as Author;
     const validation = schema.safeParse(body);
     if (!validation.success) return response.status(400).send(validation.error.format());
 
-    const author = await prisma.author.create({ data: { name: body.name } })
+    const author = await createAuthor(body.name);
 
     response.status(201).send(author)
 });
 
-router.get('/:id', auth, async (request: Request, response: Response) => {
+router.get('/:id', auth, async (request, response) => {
     const id = parseInt(request.params.id, 10);
     if (isNaN(id)) return response.status(404).send('Author not found');
 
-    const author = await prisma.author.findUnique({ where: { id } });
+    const author = await findAuthor(id);
     if (!author) return response.status(404).send('Author not found');
 
     response.send(author);
 });
 
-router.put('/:id', auth, async (request: Request, response: Response) => {
+router.put('/:id', auth, async (request, response) => {
     const id = parseInt(request.params.id, 10);
     if (isNaN(id)) return response.status(404).send('Author not found');
 
@@ -43,34 +44,31 @@ router.put('/:id', auth, async (request: Request, response: Response) => {
     const validation = schema.safeParse(body);
     if (!validation.success) return response.status(400).send(validation.error.format());
 
-    const author = await prisma.author.findUnique({ where: { id } });
+    const author = await findAuthor(id);
     if (!author) return response.status(404).send('Author not found');
 
-    const updatedAuthor = await prisma.author.update({
-        where: { id },
-        data: { name: body.name }
-    });
+    const updatedAuthor = await updateAuthor({ id, name: body.name });
 
     response.send(updatedAuthor);
 });
 
-router.delete('/:id', auth, async (request: Request, response: Response) => {
+router.delete('/:id', auth, async (request, response) => {
     const id = parseInt(request.params.id, 10);
     if (isNaN(id)) return response.status(404).send('Author not found');
 
-    const author = await prisma.author.findUnique({ where: { id } });
+    const author = await findAuthor(id);
     if (!author) return response.status(404).send('Author not found');
 
-    const deletedAuthor = await prisma.author.delete({ where: { id } });
+    const deletedAuthor = await deleteAuthor(id);
 
     response.send(deletedAuthor);
 });
 
-router.get('/:authorId/books', auth, async (request: Request, response: Response) => {
+router.get('/:authorId/books', auth, async (request, response) => {
     const authorId = parseInt(request.params.authorId, 10);
     if (isNaN(authorId)) return response.status(404).send('Author not found');
 
-    const author = await prisma.author.findUnique({ where: { id: authorId } });
+    const author = await findAuthor(authorId)
     if (!author) return response.status(404).send('Author not found');
 
     const books = await prisma.book.findMany({ where: { authorId: author.id } });
@@ -78,11 +76,11 @@ router.get('/:authorId/books', auth, async (request: Request, response: Response
     response.send(books);
 });
 
-router.get('/:authorId/books/:bookId', auth, async (request: Request, response: Response) => {
+router.get('/:authorId/books/:bookId', auth, async (request, response) => {
     const authorId = parseInt(request.params.authorId, 10);
     if (isNaN(authorId)) return response.status(404).send('Author not found');
 
-    const author = await prisma.author.findUnique({ where: { id: authorId } });
+    const author = await findAuthor(authorId);
     if (!author) return response.status(404).send('Author not found');
 
     const bookId = parseInt(request.params.bookId, 10);
